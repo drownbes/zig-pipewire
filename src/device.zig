@@ -44,7 +44,7 @@ pub const Device = opaque {
             self,
             c.pw_device_methods,
             "enum_params",
-            .{ seq, @enumToInt(id), index, num, @ptrCast(?*c.struct_spa_pod, filter) },
+            .{ seq, @intFromEnum(id), index, num, @as(?*c.struct_spa_pod, @ptrCast(filter)) },
         );
     }
     pub fn setParam(self: *Device, id: u32, flags: u32, pod: *const spa.SpaPod) isize {
@@ -52,7 +52,7 @@ pub const Device = opaque {
             self,
             c.pw_device_methods,
             "set_param",
-            .{ id, flags, @ptrCast(?*const c.struct_spa_pod, pod) },
+            .{ id, flags, @as(?*c.struct_spa_pod, @constCast(@ptrCast(pod))) },
         );
     }
 
@@ -77,4 +77,3 @@ pub const DeviceInfo = extern struct {
         return self.params[0..self.n_params];
     }
 };
-

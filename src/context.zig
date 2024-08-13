@@ -5,7 +5,7 @@ const c = pw.c;
 pub const Context = opaque {
     extern fn pw_context_new(main_loop: *pw.Loop, props: ?*c.struct_pw_properties, user_data_size: usize) ?*Context;
     pub fn new(loop: *pw.Loop) !*Context {
-        var context = pw_context_new(loop, null, 0);
+        const context = pw_context_new(loop, null, 0);
         return context orelse error.CreationError;
     }
 

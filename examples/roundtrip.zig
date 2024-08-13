@@ -135,13 +135,11 @@ pub fn nodeListener(data: *RemoteData, event: pw.Node.Event) void {
 pub fn metadataListener(data: *RemoteData, event: pw.Metadata.Event) void {
     const prop = event.property;
     if (prop.type != null and std.mem.eql(u8, prop.type.?, "Spa:String:JSON")) {
-        var parser = std.json.Parser.init(data.allocator, false);
-        defer parser.deinit();
-        var tree = parser.parse(prop.value) catch unreachable;
+        var tree = std.json.parseFromSlice(std.json.Value, data.allocator, prop.value, .{}) catch unreachable;
         defer tree.deinit();
 
         if (std.mem.eql(u8, prop.key, "default.audio.sink")) {
-            const default_sink = tree.root.Object.get("name").?.String;
+            const default_sink = tree.value.object.get("name").?.string;
 
             var it = data.globals.valueIterator();
             while (it.next()) |g| {
@@ -179,28 +177,28 @@ pub fn registryListener(data: *RemoteData, event: pw.Registry.Event) void {
             // std.debug.print("GLOBAL added : id:{} type:{} v:{}\n", .{ e.id, e.typ, e.version });
             switch (e.typ) {
                 .Node => {
-                    std.debug.print("Node {} props: {}\n\n", .{e.id, e.props});
+                    std.debug.print("Node {} props: {}\n\n", .{ e.id, e.props });
                     var node = g.proxy.downcast(pw.Node);
-                    var listener = node.addListener(data.allocator, RemoteData, data, nodeListener);
+                    const listener = node.addListener(data.allocator, RemoteData, data, nodeListener);
                     g.listener = listener;
                 },
                 .Device => {
                     std.debug.print("device: {}\n\n", .{e.props});
                     var device = g.proxy.downcast(pw.Device);
-                    var listener = device.addListener(data.allocator, RemoteData, data, deviceListener);
+                    const listener = device.addListener(data.allocator, RemoteData, data, deviceListener);
                     g.listener = listener;
                 },
                 .Metadata => {
                     // std.debug.print("METADATA: \n", .{});
                     var metadata = g.proxy.downcast(pw.Metadata);
-                    var listener = metadata.addListener(data.allocator, RemoteData, data, metadataListener);
+                    const listener = metadata.addListener(data.allocator, RemoteData, data, metadataListener);
                     g.listener = listener;
                 },
                 else => {},
             }
         },
         .global_remove => |e| {
-            var kv = data.globals.fetchRemove(e.id).?;
+            const kv = data.globals.fetchRemove(e.id).?;
             var g = kv.value;
             std.debug.print("GLOBAL REMOVED  {} {} {?s}!!!!!!!\n", .{ e.id, g.typ, g.props.get("node.name") });
             g.deinit();

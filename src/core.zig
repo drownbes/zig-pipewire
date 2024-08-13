@@ -6,14 +6,14 @@ const c = pw.c;
 
 pub const Core = opaque {
     pub fn getRegistry(self: *Core) !*pw.Registry {
-        var registry = spa.spa_interface_call_method(
+        const registry = spa.spa_interface_call_method(
             self,
             c.pw_core_methods,
             "get_registry",
             .{ c.PW_VERSION_REGISTRY, 0 },
         );
         if (registry) |r| {
-            return @ptrCast(*pw.Registry, r);
+            return @ptrCast(r);
         }
         return error.CreationError;
     }
@@ -33,7 +33,7 @@ pub const Core = opaque {
     }
 
     pub fn asProxy(self: *Core) *pw.Proxy {
-        return @ptrCast(*pw.Proxy, self);
+        return @ptrCast(self);
     }
 
     pub const Event = union(enum) {
@@ -42,8 +42,8 @@ pub const Core = opaque {
             seq: isize,
             pub fn fromArgs(args_tuple: anytype) @This() {
                 return @This(){
-                    .id = @intCast(u32, args_tuple[0]),
-                    .seq = @intCast(isize, args_tuple[1]),
+                    .id = @intCast(args_tuple[0]),
+                    .seq = @intCast(args_tuple[1]),
                 };
             }
         },

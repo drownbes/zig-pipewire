@@ -24,7 +24,6 @@ pub const ObjType = @import("registry.zig").ObjType;
 pub const spa = @import("spa.zig");
 pub const utils = @import("utils.zig");
 
-    
 test {
     const std = @import("std");
     std.testing.refAllDeclsRecursive(spa);

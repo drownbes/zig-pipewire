@@ -35,7 +35,7 @@ pub const Builder = struct {
 
     pub fn updateParentSize(self: *Builder) void {
         const pi = self.parents[self.depth - 1];
-        self.parent().size = @intCast(u32, self.data.items.len - pi - @sizeOf(SpaPod));
+        self.parent().size = @intCast(self.data.items.len - pi - @sizeOf(SpaPod));
     }
 
     pub fn pushBytes(self: *Builder, bytes: []const u8) !void {
@@ -111,26 +111,40 @@ pub const Builder = struct {
     }
 
     pub fn add(self: *Builder, typ: spa_type, args: anytype) !void {
-        // const active_tag = @intToEnum(std.meta.Tag(SpaPodBody), @enumToInt(typ));
+        std.debug.print("building here {any} \n", .{args});
         const active_tag = std.meta.stringToEnum(std.meta.Tag(SpaPodBody), @tagName(typ)) orelse unreachable;
 
         try self.push(typ);
         switch (active_tag) {
-            .String => {
-                if (comptime std.meta.trait.isSliceOf(.Int)(@TypeOf(args[0]))) {
-                    try self.pushString(args[0]);
-                } else {
-                    unreachable;
-                }
+            .String => |t| {
+                std.debug.print("{any}", .{t});
+                //if (comptime [].Int == @TypeOf(args[0])) {
+                //    try self.pushString(args[0]);
+                //} else {
+                //    unreachable;
+                //}
             },
             .Object => {
-                const fields = std.meta.fields(@TypeOf(args));
-                inline for (fields) |f, i| {
-                    if (comptime std.meta.trait.isTuple(f.field_type)) {
-                        try self.pushProp(args[i][0]);
-                        try @call(.{}, self.add, args[i][1]);
-                    } else {
-                        unreachable;
+                const T = @TypeOf(args);
+                const ti = @typeInfo(T).Struct.fields;
+                inline for (ti, 0..) |f, i| {
+                    const fi = @typeInfo(f.type);
+                    switch (fi) {
+                        .Struct => {
+                            const fii = fi.Struct.is_tuple;
+                            if (fii) {
+                                try self.pushProp(args[i][0]);
+                                std.debug.print("\n\n{any}\n\n", .{args[i]});
+                                std.debug.print("\n\n{any}\n\n", .{args[i][1]});
+                                const s = @This();
+                                try @call(.auto, s.add, .{ self, args[i][1][0], args[i][1][1] });
+                            } else {
+                                unreachable;
+                            }
+                        },
+                        inline else => {
+                            unreachable;
+                        },
                     }
                 }
             },
@@ -142,14 +156,14 @@ pub const Builder = struct {
                     unreachable;
                 }
             },
-            .Array => {
-                const T = @TypeOf(args[0]);
-                if (comptime std.meta.trait.isIndexable(T) and !std.meta.trait.isTuple(T) ) {
-                    try self.pushArray(args[0]);
-                } else {
-                    unreachable;
-                }
-            },
+            //    .Array => {
+            //        const T = @TypeOf(args[0]);
+            //        if (comptime std.meta.trait.isIndexable(T) and !std.meta.trait.isTuple(T)) {
+            //            try self.pushArray(args[0]);
+            //        } else {
+            //            unreachable;
+            //        }
+            //    },
             inline else => {
                 try self.pushVal(args[0]);
             },
@@ -158,12 +172,12 @@ pub const Builder = struct {
     }
 
     pub fn deref(self: *const Builder) *SpaPod {
-        return @ptrCast(*SpaPod, @alignCast(@alignOf(*SpaPod), &self.data.items[0]));
+        return @ptrCast(@alignCast(&self.data.items[0]));
     }
 
     pub fn parent(self: *const Builder) *SpaPod {
         const i = self.parents[self.depth - 1];
-        return @ptrCast(*SpaPod, @alignCast(@alignOf(*SpaPod), &self.data.items[i]));
+        return @ptrCast(@alignCast(&self.data.items[i]));
     }
 };
 
@@ -197,14 +211,14 @@ pub const ObjBody = extern struct {
         pub fn name(self: *const Prop, obj_type: spa_type) [:0]const u8 {
             switch (obj_type) {
                 .OBJECT_Props => {
-                    return @tagName(@intToEnum(SpaPropType, self.key));
+                    return @tagName(@as(SpaPropType, @enumFromInt(self.key)));
                 },
                 inline else => |t| {
                     if (comptime std.mem.startsWith(u8, @tagName(t), "OBJECT_Param")) {
                         const enumName = @tagName(t)[12..] ++ "Param";
                         if (@hasDecl(fileNS, enumName)) {
                             const EnumType = @field(fileNS, enumName);
-                            return @tagName(@intToEnum(EnumType, self.key));
+                            return @tagName(@as(EnumType, @enumFromInt(self.key)));
                         }
                     }
                 },
@@ -213,21 +227,21 @@ pub const ObjBody = extern struct {
         }
 
         pub fn next(self: *const Prop) *const Prop {
-            const next_ptr = @ptrToInt(self) + round_up_n(self.size(), 8);
-            return @intToPtr(*const Prop, next_ptr);
+            const next_ptr = @intFromPtr(self) + round_up_n(self.size(), 8);
+            return @ptrFromInt(next_ptr);
         }
         pub fn is_inside(self: *const Prop, body: *const ObjBody, body_size: usize) bool {
-            const start = @ptrToInt(self) + @sizeOf(Prop);
-            const end = @ptrToInt(self) + self.size();
-            const max = @ptrToInt(body) + body_size;
+            const start = @intFromPtr(self) + @sizeOf(Prop);
+            const end = @intFromPtr(self) + self.size();
+            const max = @intFromPtr(body) + body_size;
             return start <= max and end <= max;
         }
     };
 
     pub fn prop_iterator(self: *const ObjBody) SpaPodPropIterator {
-        const first_ptr = @ptrToInt(self) + @sizeOf(SpaPod);
-        const first = @intToPtr(*const Prop, first_ptr);
-        const parent = @intToPtr(*const SpaPod, @ptrToInt(self) - @sizeOf(SpaPod));
+        const first_ptr = @intFromPtr(self) + @sizeOf(SpaPod);
+        const first: *const ObjBody.Prop = @ptrFromInt(first_ptr);
+        const parent: *const SpaPod = @ptrFromInt(@intFromPtr(self) - @sizeOf(SpaPod));
         return .{
             .current = first,
             .body = self,
@@ -267,8 +281,8 @@ pub const ArrayBody = extern struct {
     };
 
     pub fn asSlice(self: *const ArrayBody) ArraySlice {
-        const first_ptr = @ptrToInt(self) + @sizeOf(ArrayBody);
-        const parent = @intToPtr(*const SpaPod, @ptrToInt(self) - @sizeOf(SpaPod));
+        const first_ptr = @intFromPtr(self) + @sizeOf(ArrayBody);
+        const parent: *const SpaPod = @ptrFromInt(@intFromPtr(self) - @sizeOf(SpaPod));
         const len = (parent.size - @sizeOf(ArrayBody)) / self.child.size;
 
         const active_tag = std.meta.stringToEnum(std.meta.Tag(ArraySlice), @tagName(self.child.type)) orelse unreachable;
@@ -277,7 +291,7 @@ pub const ArrayBody = extern struct {
                 const subtype = std.meta.TagPayload(ArraySlice, t);
                 comptime var ti = @typeInfo(subtype);
                 ti.Pointer.size = .Many;
-                const b = @intToPtr(@Type(ti), first_ptr);
+                const b: @Type(ti) = @ptrFromInt(first_ptr);
                 return @unionInit(ArraySlice, @tagName(t), b[0..len]);
             },
         }
@@ -297,9 +311,9 @@ pub const StructBody = opaque {
         }
     };
     pub fn iterator(self: *const StructBody) Iterator {
-        const first_ptr = @ptrToInt(self);
-        const first = @intToPtr(*const SpaPod, first_ptr);
-        const parent = @intToPtr(*const SpaPod, first_ptr - @sizeOf(SpaPod));
+        const first_ptr = @intFromPtr(self);
+        const first: *const SpaPod = @ptrFromInt(first_ptr);
+        const parent: *const SpaPod = @ptrFromInt(first_ptr - @sizeOf(SpaPod));
         return .{
             .current = first,
             .parent = parent,
@@ -387,38 +401,38 @@ pub const SpaPod = extern struct {
     }
 
     pub fn next(self: *const SpaPod) *const SpaPod {
-        const next_ptr = @ptrToInt(self) + round_up_n(@sizeOf(SpaPod) + self.size, 8);
-        return @intToPtr(*const SpaPod, next_ptr);
+        const next_ptr = @intFromPtr(self) + round_up_n(@sizeOf(SpaPod) + self.size, 8);
+        return @ptrFromInt(next_ptr);
     }
     pub fn is_inside(self: *const SpaPod, parent: *const SpaPod) bool {
-        const start = @ptrToInt(self);
-        const end = @ptrToInt(self) + self.size;
-        const max = @ptrToInt(parent) + parent.size;
+        const start = @intFromPtr(self);
+        const end = @intFromPtr(self) + self.size;
+        const max = @intFromPtr(parent) + parent.size;
         return start <= max and end <= max;
     }
 
     pub fn copy(self: *const SpaPod, allocator: std.mem.Allocator) !*SpaPod {
         const size = @sizeOf(SpaPod) + self.size;
-        const ptr = @ptrCast([*]const u8, self);
+        const ptr: [*]const u8 = @ptrCast(self);
         const mem = ptr[0..size];
         const mem2 = try allocator.dupe(u8, mem);
-        return @ptrCast(*SpaPod, @alignCast(@alignOf(*SpaPod), mem2.ptr));
+        return @ptrCast(@alignCast(mem2.ptr));
     }
     pub fn deinit(self: *SpaPod, allocator: std.mem.Allocator) void {
-        var size = @sizeOf(SpaPod) + self.size;
-        var ptr = @ptrCast([*]const u8, self);
-        var mem = ptr[0..size];
+        const size = @sizeOf(SpaPod) + self.size;
+        var ptr: [*]const u8 = @ptrCast(self);
+        const mem = ptr[0..size];
         allocator.free(mem);
     }
 
     pub fn body(self: *const SpaPod) SpaPodBody {
-        const body_ptr = @ptrToInt(self) + @sizeOf(SpaPod);
+        const body_ptr = @intFromPtr(self) + @sizeOf(SpaPod);
 
         const active_tag = std.meta.stringToEnum(std.meta.Tag(SpaPodBody), @tagName(self.type)) orelse unreachable;
         switch (active_tag) {
             inline else => |t| {
                 const subtype = std.meta.TagPayload(SpaPodBody, t);
-                const b = @intToPtr(subtype, body_ptr);
+                const b: subtype = @ptrFromInt(body_ptr);
                 return @unionInit(SpaPodBody, @tagName(t), b);
             },
         }

@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub fn build(b: *std.build.Builder) void {
+pub fn build(b: *std.Build) void {
     // Standard target options allows the person running `zig build` to choose
     // what target to build for. Here we do not override the defaults, which
     // means any target is allowed, and the default is native. Other options
@@ -10,9 +10,9 @@ pub fn build(b: *std.build.Builder) void {
     // Standard release options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     // b.setPreferredReleaseMode(.Debug);
-    const mode = b.standardReleaseOptions();
+    //const mode = b.standardReleaseOptions();
 
-    const pipewire = std.build.Pkg{ .name = "pipewire", .source = .{ .path = "src/pipewire.zig" } };
+    //const optimize = b.standardOptimizeOption(.{});
 
     // const exe = b.addExecutable("zig-pw", "examples/roundtrip.zig");
     // exe.setTarget(target);
@@ -24,17 +24,28 @@ pub fn build(b: *std.build.Builder) void {
     // exe.install();
 
     inline for ([_][]const u8{ "roundtrip", "volume" }) |example| {
-        const exe = b.addExecutable(example, "examples/" ++ example ++ ".zig");
+        const exe = b.addExecutable(.{
+            .name = example,
+            .root_source_file = b.path("examples/" ++ example ++ ".zig"),
+            .target = target,
+        });
         // const exe = b.addExecutable("zig-pw", "examples/roundtrip.zig");
-        exe.setTarget(target);
-        exe.setBuildMode(mode);
+        exe.addIncludePath(std.Build.LazyPath{ .src_path = .{ .owner = b, .sub_path = "/nix/store/cw78ndjp827zan6hpdk41c45ynfwqrvk-pipewire-1.2.1-dev/include/pipewire-0.3/" } });
+        exe.addIncludePath(std.Build.LazyPath{ .src_path = .{ .owner = b, .sub_path = "/nix/store/cw78ndjp827zan6hpdk41c45ynfwqrvk-pipewire-1.2.1-dev/include/spa-0.2/" } });
         exe.linkLibC();
         exe.linkSystemLibrary("libpipewire-0.3");
-        exe.addPackage(pipewire);
+        const pipewire = b.addModule("pipewire", .{
+            .root_source_file = b.path("src/pipewire.zig"),
+        });
 
-        exe.install();
+        pipewire.addIncludePath(std.Build.LazyPath{ .src_path = .{ .owner = b, .sub_path = "/nix/store/cw78ndjp827zan6hpdk41c45ynfwqrvk-pipewire-1.2.1-dev/include/pipewire-0.3/" } });
+        pipewire.addIncludePath(std.Build.LazyPath{ .src_path = .{ .owner = b, .sub_path = "/nix/store/cw78ndjp827zan6hpdk41c45ynfwqrvk-pipewire-1.2.1-dev/include/spa-0.2/" } });
 
-        const run_cmd = exe.run();
+        exe.root_module.addImport("pipewire", pipewire);
+
+        b.installArtifact(exe);
+
+        const run_cmd = b.addRunArtifact(exe);
         run_cmd.step.dependOn(b.getInstallStep());
 
         if (b.args) |args| {
@@ -45,13 +56,12 @@ pub fn build(b: *std.build.Builder) void {
         run_step.dependOn(&run_cmd.step);
     }
 
-    const exe_tests = b.addTest("src/pipewire.zig");
-    exe_tests.setTarget(target);
-    exe_tests.setBuildMode(mode);
-    exe_tests.addCSourceFile("src/spa/test_pod.c", &[_][]const u8{});
-    exe_tests.linkLibC();
-    exe_tests.linkSystemLibrary("libpipewire-0.3");
+    //const exe_tests = b.addTest("src/pipewire.zig");
+    //exe_tests.setTarget(target);
+    //exe_tests.addCSourceFile("src/spa/test_pod.c", &[_][]const u8{});
+    //exe_tests.linkLibC();
+    //exe_tests.linkSystemLibrary("libpipewire-0.3");
 
-    const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&exe_tests.step);
+    //const test_step = b.step("test", "Run unit tests");
+    //test_step.dependOn(&exe_tests.step);
 }

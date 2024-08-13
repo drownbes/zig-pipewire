@@ -7,7 +7,7 @@ pub const MainLoop = opaque {
     extern fn pw_main_loop_new(props: ?*const c.struct_spa_dict) ?*MainLoop;
     pub fn new() !*MainLoop {
         // var loop = @ptrCast(?*MainLoop, c.pw_main_loop_new(null));
-        var loop = pw_main_loop_new(null);
+        const loop = pw_main_loop_new(null);
         return loop orelse error.CreationError;
     }
 
@@ -24,13 +24,13 @@ pub const MainLoop = opaque {
         const os = std.os;
         const pw_epoll_fd = self.getLoop().getFd();
         std.debug.print("Hello\n", .{});
-        var running = true;
+        const running = true;
         const epollfd = try os.epoll_create1(os.linux.EPOLL.CLOEXEC);
         defer os.close(epollfd);
 
         var event = os.linux.epoll_event{
             .events = os.linux.EPOLL.IN,
-            .data = .{ .ptr = @ptrToInt(self) },
+            .data = .{ .ptr = @ptrFromInt(self) },
         };
         try os.epoll_ctl(epollfd, os.linux.EPOLL.CTL_ADD, pw_epoll_fd, &event);
 
@@ -41,7 +41,7 @@ pub const MainLoop = opaque {
             // std.debug.print("{} events ready.\n", .{event_count});
             var i: usize = 0;
             while (i < event_count) : (i += 1) {
-                const l = @intToPtr(*MainLoop, events[i].data.ptr);
+                const l: *MainLoop = @ptrFromInt(events[i].data.ptr);
                 _ = l.getLoop().iterate() catch |err| {
                     if (err == error.Interrupted) continue;
                     std.debug.print("ITERATE ERROR\n", .{});

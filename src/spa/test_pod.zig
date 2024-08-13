@@ -1,4 +1,3 @@
-
 const std = @import("std");
 const pod = @import("pod.zig");
 const Builder = pod.Builder;
@@ -50,17 +49,17 @@ test "string" {
 
 extern fn build_array(buffer: [*]u8, len: usize, child_size: u32, child_type: pod.spa_type, n_elems: u32, elems: *anyopaque) c_int;
 test "array" {
-    var array = [_]i32{10, 15, 19} ;
+    var array = [_]i32{ 10, 15, 19 };
     var b = Builder.init(std.testing.allocator);
     defer b.deinit();
 
     try b.add(.Array, .{&array});
 
     var c_buf = [_]u8{0} ** 32;
-    try std.testing.expectEqual(build_array(&c_buf, 32, @sizeOf(i32), .Int, array.len, &array ), 0);
+    try std.testing.expectEqual(build_array(&c_buf, 32, @sizeOf(i32), .Int, array.len, &array), 0);
 
     std.debug.print("\nc: {any}\n", .{c_buf});
     std.debug.print("d: {any}\n", .{b.data.items});
-    
+
     try std.testing.expectEqualSlices(u8, &c_buf, b.data.items);
 }

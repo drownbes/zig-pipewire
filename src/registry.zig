@@ -14,11 +14,11 @@ pub const Registry = opaque {
         props: *const spa.SpaDict,
         pub fn fromArgs(args_tuple: anytype) Global {
             return Global{
-                .id = @intCast(u32, args_tuple[0]),
-                .permissions = @intCast(u32, args_tuple[1]),
-                .typ = ObjType.fromString(std.mem.span(@intToPtr([*:0]const u8, args_tuple[2]))),
-                .version = @intCast(u32, args_tuple[3]),
-                .props = @intToPtr(*const spa.SpaDict, args_tuple[4]),
+                .id = @intCast(args_tuple[0]),
+                .permissions = @intCast(args_tuple[1]),
+                .typ = ObjType.fromString(std.mem.span(@as([*:0]const u8, @ptrFromInt(args_tuple[2])))),
+                .version = @intCast(args_tuple[3]),
+                .props = @ptrFromInt(args_tuple[4]),
             };
         }
     };
@@ -52,7 +52,7 @@ pub const Registry = opaque {
     }
 
     pub fn bind(self: *Registry, object: Global) !*Proxy {
-        var proxy = spa.spa_interface_call_method(
+        const proxy = spa.spa_interface_call_method(
             self,
             c.pw_registry_methods,
             "bind",
@@ -60,7 +60,7 @@ pub const Registry = opaque {
         );
 
         if (proxy) |r| {
-            return @ptrCast(*Proxy, r);
+            return @ptrCast(r);
         }
         return error.CreationError;
     }
@@ -107,7 +107,7 @@ pub const ObjType = enum {
             if (comptime std.mem.eql(u8, f.name, "Other")) {
                 break;
             }
-            if (@enumToInt(self) == f.value) {
+            if (@intFromEnum(self) == f.value) {
                 return "PipeWire:Interface:" ++ f.name;
             }
         }
@@ -119,7 +119,7 @@ pub const ObjType = enum {
             if (comptime std.mem.eql(u8, f.name, "Other")) {
                 break;
             }
-            if (@enumToInt(self) == f.value) {
+            if (@intFromEnum(self) == f.value) {
                 const v = comptime blk: {
                     var result: []const u8 = "PW_VERSION";
                     for (f.name) |char| {
