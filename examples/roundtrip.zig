@@ -1,6 +1,7 @@
 const std = @import("std");
 const ArrayList = std.ArrayList;
 const pw = @import("pipewire");
+const pretty = @import("pretty");
 
 const Global = struct {
     id: u32,
@@ -135,8 +136,13 @@ pub fn nodeListener(data: *RemoteData, event: pw.Node.Event) void {
 pub fn metadataListener(data: *RemoteData, event: pw.Metadata.Event) void {
     const prop = event.property;
     if (prop.type != null and std.mem.eql(u8, prop.type.?, "Spa:String:JSON")) {
-        var tree = std.json.parseFromSlice(std.json.Value, data.allocator, prop.value, .{}) catch unreachable;
+        var tree = std.json.parseFromSlice(std.json.Value, data.allocator, prop.value, .{}) catch {
+            // std.debug.print("cannot parse json property {any} {s}\n", .{ event, prop.value });
+            return;
+        };
         defer tree.deinit();
+
+        std.debug.print("\n metadata: \n{s}\n---\n", .{prop.value});
 
         if (std.mem.eql(u8, prop.key, "default.audio.sink")) {
             const default_sink = tree.value.object.get("name").?.string;
@@ -159,6 +165,9 @@ pub fn metadataListener(data: *RemoteData, event: pw.Metadata.Event) void {
 }
 
 pub fn registryListener(data: *RemoteData, event: pw.Registry.Event) void {
+    std.debug.print("\n----\nListener got event: \n------\n, {any}", .{event});
+
+    pretty.print(data.allocator, event.global.props.asSlice(), .{}) catch return;
     switch (event) {
         .global => |e| {
             if (e.typ == .Profiler) return;

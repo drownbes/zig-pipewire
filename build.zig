@@ -22,6 +22,7 @@ pub fn build(b: *std.Build) void {
     // exe.addPackage(pipewire);
 
     // exe.install();
+    const pretty = b.dependency("pretty", .{ .target = target });
 
     inline for ([_][]const u8{ "roundtrip", "volume" }) |example| {
         const exe = b.addExecutable(.{
@@ -42,6 +43,7 @@ pub fn build(b: *std.Build) void {
         pipewire.addIncludePath(std.Build.LazyPath{ .src_path = .{ .owner = b, .sub_path = "/nix/store/cw78ndjp827zan6hpdk41c45ynfwqrvk-pipewire-1.2.1-dev/include/spa-0.2/" } });
 
         exe.root_module.addImport("pipewire", pipewire);
+        exe.root_module.addImport("pretty", pretty.module("pretty"));
 
         b.installArtifact(exe);
 
